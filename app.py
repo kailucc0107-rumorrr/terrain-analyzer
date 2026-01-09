@@ -4,13 +4,21 @@ import plotly.graph_objects as go
 import sympy as sp
 
 # --- 1. App Configuration ---
-st.set_page_config(page_title="Civil Engineer's Terrain Analyzer Pro", layout="wide")
+st.set_page_config(page_title="Civil Engineer's Terrain Analyzer (Edu)", layout="wide")
 
-st.title("🏗️ The Civil Engineer's Terrain Analyzer (Pro Version)")
+st.title("🏗️ The Civil Engineer's Terrain Analyzer (Educational Ver.)")
 st.markdown("""
-**Assignment Context:** This tool assists civil engineers in analyzing terrain.
-Now featuring **Custom Function Input** powered by Symbolic AI.
+**Welcome, Student Engineer!** 👷‍♂️
+This tool helps you visualize how Calculus concepts (Derivatives & Gradients) are used in real-world Civil Engineering to analyze land topography.
 """)
+
+# --- Add a "How to Use" Guide ---
+with st.expander("📖 READ ME FIRST: How to use this tool?"):
+    st.markdown("""
+    1.  **Select a Scenario:** Choose a terrain type on the left.
+    2.  **Move the Surveyor:** Drag the sliders to move your position (Red Dot).
+    3.  **Analyze the Data:** Check the panel below to see if the slope is safe for construction.
+    """)
 
 # --- 2. Sidebar Controls ---
 st.sidebar.header("⚙️ Engineering Controls")
@@ -18,61 +26,51 @@ st.sidebar.header("⚙️ Engineering Controls")
 # Scenario Selection
 scenario = st.sidebar.selectbox(
     "Select Terrain Scenario:",
-    ("Scenario A: Symmetrical Hill", "Scenario B: Mountain Pass", "Custom (Enter your own formula)")
+    ("Scenario A: Symmetrical Hill", "Scenario B: Mountain Pass", "Custom (Enter your own formula)"),
+    help="Choose a preset land shape or enter a custom function."
 )
 
 # Custom Input Handling
 if scenario == "Custom (Enter your own formula)":
-    st.sidebar.info("Tip: Use Python syntax. e.g., `x**2` for $x^2$, `sin(x)` for $\sin(x)$")
+    st.sidebar.info("Tip: Use Python syntax. e.g., `x**2` for x², `sin(x)`")
     user_formula = st.sidebar.text_input("Enter Function f(x,y):", value="sin(x) + cos(y)")
 else:
-    # Presets
     if "Scenario A" in scenario:
         user_formula = "100 - x**2 - y**2"
     else:
         user_formula = "x**2 - y**2 + 50"
 
-# Coordinates Input
+# Coordinates Input (Updated Labels as requested)
 st.sidebar.subheader("📍 Surveyor Position")
-x_val = st.sidebar.slider("X Coordinate", -5.0, 5.0, 1.0, 0.1)
-y_val = st.sidebar.slider("Y Coordinate", -5.0, 5.0, 1.0, 0.1)
+x_val = st.sidebar.slider("X Coordinate (East-West)", -5.0, 5.0, 1.0, 0.1, help="Move left/right on the map")
+y_val = st.sidebar.slider("Y Coordinate (North-South)", -5.0, 5.0, 1.0, 0.1, help="Move up/down on the map")
 
-# Tools
+# Tools (Updated Labels as requested)
 st.sidebar.subheader("🛠️ Analysis Tools")
-show_gradient = st.sidebar.checkbox("Show Gradient (Drainage Flow)", value=True)
-show_tangent = st.sidebar.checkbox("Show Tangent Plane (Construction)", value=False)
+show_gradient = st.sidebar.checkbox("Show Gradient (Water Flow)", value=True, help="Visualizes the direction of steepest ascent.")
+show_tangent = st.sidebar.checkbox("Show Tangent Plane (Leveling)", value=False, help="Visualizes the flat surface approximation.")
 
 # --- 3. The Math Engine (SymPy) ---
-
 def process_function(formula_str, x_input, y_input):
     try:
-        # Define symbols
         x, y = sp.symbols('x y')
-        
-        # Parse the string into a math expression
         expr = sp.sympify(formula_str)
-        
-        # Calculate Partial Derivatives Symbolically
         fx_expr = sp.diff(expr, x)
         fy_expr = sp.diff(expr, y)
         
-        # Convert to Python functions for fast plotting (numpy)
         f_func = sp.lambdify((x, y), expr, 'numpy')
         fx_func = sp.lambdify((x, y), fx_expr, 'numpy')
         fy_func = sp.lambdify((x, y), fy_expr, 'numpy')
         
-        # Calculate values at the specific point
         z_val = float(f_func(x_input, y_input))
         fx_val = float(fx_func(x_input, y_input))
         fy_val = float(fy_func(x_input, y_input))
         
-        # Generate Grid Data for 3D Plot
         x_range = np.linspace(-6, 6, 100)
         y_range = np.linspace(-6, 6, 100)
         X, Y = np.meshgrid(x_range, y_range)
-        Z = f_func(X, Y) # This might broadcast a single value if function is constant
+        Z = f_func(X, Y)
         
-        # Handle constant functions (e.g. z=10)
         if isinstance(Z, (int, float)):
             Z = np.full_like(X, Z)
             
@@ -81,54 +79,76 @@ def process_function(formula_str, x_input, y_input):
     except Exception as e:
         return None, None, None, None, None, None, None, None, None, str(e)
 
-# Run the Math Engine
 X, Y, Z, z0, fx, fy, latex_f, latex_fx, latex_fy, error_msg = process_function(user_formula, x_val, y_val)
 
-# --- 4. Main Display ---
+# --- 4. Main Display with Explanations ---
 
 col1, col2 = st.columns([1, 2])
 
 with col1:
     if error_msg:
         st.error(f"❌ **Syntax Error:** {error_msg}")
-        st.warning("Please check your math syntax. Use `**` for power, `np.sin` is not needed, just `sin`.")
     else:
-        st.info(f"**Function:** $f(x,y) = {latex_f}$")
-        st.divider()
+        st.info(f"**Current Function:**\n\n $f(x,y) = {latex_f}$")
         
-        st.subheader("📊 Calculus Data")
+        st.subheader("📊 Site Analysis Data")
+        
+        # --- Elevation ---
         st.metric("Elevation (z)", f"{z0:.2f} m")
+        st.caption("ℹ️ This represents the height above sea level.")
         
-        st.markdown("#### 1. Partial Derivatives")
+        st.divider()
+
+        # --- Partial Derivatives ---
+        st.markdown("#### 1. Slope Analysis (Partial Derivatives)")
         st.latex(r"\frac{\partial f}{\partial x} = " + latex_fx)
         st.latex(r"\frac{\partial f}{\partial y} = " + latex_fy)
         
         c1, c2 = st.columns(2)
-        c1.metric("Slope X (fx)", f"{fx:.2f}")
-        c2.metric("Slope Y (fy)", f"{fy:.2f}")
+        # Keeping technical terms + Direction context
+        c1.metric("Slope X (East-West)", f"{fx:.2f}")
+        c2.metric("Slope Y (North-South)", f"{fy:.2f}")
+
+        # ✨ EXPLANATION FOR BEGINNERS ✨
+        with st.expander("❓ What does this mean?"):
+            st.markdown("""
+            **Engineering Application: Road Safety**
+            * **Slope X:** Tells us how steep the road is in the East-West direction.
+            * **Slope Y:** Tells us how steep the road is in the North-South direction.
+            * **Why it matters:** If this number is too high (e.g., > 0.10), construction trucks cannot climb it safely!
+            """)
+
+        st.divider()
         
-        # Topic 4: Gradient
-        st.markdown("#### 2. Gradient Vector")
+        # --- Gradient ---
+        st.markdown("#### 2. Drainage Analysis (Gradient)")
         grad_mag = np.sqrt(fx**2 + fy**2)
         st.latex(r"\nabla f = \langle " + f"{fx:.2f}, {fy:.2f}" + r" \rangle")
         
         if grad_mag < 0.1:
-            st.error("🚩 **PEAK/VALLEY DETECTED** (Gradient ≈ 0)")
+            st.success("✅ **FLAT LAND** (Good for construction)")
         else:
-            st.success(f"Steepness: {grad_mag:.2f}")
+            st.warning(f"⚠️ **STEEP TERRAIN** (Steepness: {grad_mag:.2f})")
+
+        # ✨ EXPLANATION FOR BEGINNERS ✨
+        with st.expander("❓ How to read the arrow?"):
+            st.markdown("""
+            **Engineering Application: Water Drainage**
+            * The **Red Arrow (Gradient)** points to the highest peak (steepest ascent).
+            * **Water Flow:** Water always flows in the **OPPOSITE** direction of the arrow.
+            * Engineers use this to decide where to place drainage pipes so the road doesn't flood.
+            """)
 
 with col2:
-    if error_msg:
-        st.image("https://media.giphy.com/media/26hkhKd9CQzzXsps4/giphy.gif", caption="Waiting for valid input...")
-    else:
+    if not error_msg:
         st.subheader("🌍 3D Terrain Visualization")
         
         fig = go.Figure(data=[go.Surface(z=Z, x=X, y=Y, colorscale='Earth', opacity=0.8)])
-
-        # Surveyor Point
+        
+        # Surveyor Position
         fig.add_trace(go.Scatter3d(
             x=[x_val], y=[y_val], z=[z0],
-            mode='markers', marker=dict(size=8, color='red'), name='Surveyor'
+            mode='markers', marker=dict(size=8, color='red'), name='Surveyor (You)'
         ))
 
         # Gradient Arrow
@@ -136,7 +156,7 @@ with col2:
             fig.add_trace(go.Cone(
                 x=[x_val], y=[y_val], z=[z0],
                 u=[fx], v=[fy], w=[0],
-                sizemode="absolute", sizeref=2, anchor="tail", colorscale=[[0, 'red'], [1, 'red']], name='Gradient'
+                sizemode="absolute", sizeref=2, anchor="tail", colorscale=[[0, 'red'], [1, 'red']], name='Gradient (Ascent)'
             ))
 
         # Tangent Plane
@@ -147,5 +167,12 @@ with col2:
             Zt = z0 + fx * (Xt - x_val) + fy * (Yt - y_val)
             fig.add_trace(go.Surface(x=Xt, y=Yt, z=Zt, colorscale='Gray', opacity=0.5, showscale=False, name='Tangent Plane'))
 
-        fig.update_layout(scene=dict(xaxis_title='X', yaxis_title='Y', zaxis_title='Z'), height=600, margin=dict(l=0, r=0, b=0, t=30))
+        fig.update_layout(scene=dict(xaxis_title='X (East)', yaxis_title='Y (North)', zaxis_title='Z (Height)'), height=600, margin=dict(l=0, r=0, b=0, t=30))
         st.plotly_chart(fig, use_container_width=True)
+        
+        # Visual Guide
+        st.caption("""
+        **Visual Key:** 🔴 **Red Dot:** Your Position | 
+        🔻 **Red Cone:** Steepest Way Up (Water flows opposite) | 
+        ⬜ **Gray Plane:** Leveling Surface
+        """)
